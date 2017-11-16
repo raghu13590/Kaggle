@@ -14,6 +14,7 @@ from matplotlib import pyplot as plt
 
 def prepareData():
     """ reads datafile and parses to a dataframe """
+    # Get data from here - https://www.kaggle.com/c/msk-redefining-cancer-treatment/data
     df_text = pd.read_csv('training_text', sep = '\|\|', index_col= 'ID',skip_blank_lines =True, nrows = None, header = None, skiprows = 1, names = ['ID', 'Text'], engine = 'python', encoding = 'utf-8')
     print("ROWS IN TEXT - " + str(df_text.count()))
     print("MISSING DATA IN TEXT")
