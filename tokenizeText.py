@@ -12,9 +12,6 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 from sklearn.metrics import confusion_matrix
 from matplotlib import pyplot as plt
 
-#import plotly.plotly as py
-#import plotly.graph_objs as go
-
 def prepareData():
     """ reads datafile and returns dataframe"""
     df_text = pd.read_csv('training_text', sep = '\|\|', index_col= 'ID',skip_blank_lines =True, nrows = None, header = None, skiprows = 1, names = ['ID', 'Text'], engine = 'python', encoding = 'utf-8')
@@ -52,7 +49,6 @@ def runKnnClassifier(X_train, X_test, y_train, y_test, n):
     classifier = KNeighborsClassifier(n_neighbors = n)
     classifier.fit(X_train, y_train)
     y_pred = classifier.predict(X_test)
-#    accuracy = cross_val_score(classifier, X_train, y_train, cv=10, scoring='accuracy')
     accuracy = classifier.score(X_test, y_test)
     print("KNN ACCURACY FOR ", n)
     print(accuracy)
@@ -124,13 +120,17 @@ def modifyDf(df, n):
             else:
                 df[i] = 0
                 df.loc[index,i] = j
+#    df2 = df
+#    df2.drop('Text', axis=1, inplace=True)
+#    df2.to_csv("text_tokenized.csv", sep=',')
     return df
 
 ##########################################################################
 
 df = prepareData()
 
-df = modifyDf(df, 15)
+df = modifyDf(df, None)
+print(df.head())
 
 df = encodeCols(df)
 X, y = getXAndY(df)
@@ -142,6 +142,14 @@ X_train = pca.fit_transform(X_train)
 X_test = pca.transform(X_test)
 ev = pca.explained_variance_ratio_
 print("Variance - ", sum(ev))
+
+from sklearn.neural_network import MLPClassifier
+mlp = MLPClassifier(hidden_layer_sizes=(15, 15, 15))
+mlp.fit(X_train, y_train)
+predictions = mlp.predict(X_test)
+print(confusion_matrix(y_test, predictions))
+acc_nn = mlp.score(X_test, y_test)
+print("NEURAL NTWRK ACC - ", acc_nn)
 
 runKnnForRange(10, 20)
 
