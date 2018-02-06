@@ -35,3 +35,4 @@ Class (dependent variable) - One of 9 classes the genetic mutation has been clas
 
 The idea is to break the 'Text' column into muliple columns filtering out common english words using NLP techniques and running various classification algortihms.
 
+
