@@ -13,7 +13,7 @@ from sklearn.metrics import confusion_matrix
 
 #check if difference is within last min, hour, 24hrs or earlier
 def getpastclicks(diff, index):
-    df.loc[index, 'time_diff'] = diff
+    df.at[index, 'time_diff'] = diff
     if diff.days >= 1:
         df.at[index, 'clicks_in_last_dayorearlier'] += 1
     else:
@@ -28,17 +28,18 @@ def getpastclicks(diff, index):
                 if secs >= 1 and secs <= 60:
                     df.at[index, 'clicks_in_last_onemin'] += 1
 
-def iterate_groups(x):
+def iterate_groups(group):
     # get indices in group to a list and iterate over it
-    indices_in_group = x.index.tolist()
+    indices_in_group = group.index.tolist()
     # no need to iterate if theres just one element in group
+    index_len = len(indices_in_group)
     if len(indices_in_group) > 1:
         #iterate indices in group to calculate time diff
-        for i in range(0, len(indices_in_group)):
-            t1 = x.iloc[i, 5]
-            for j in range(i + 1, len(indices_in_group)):
+        for i in range(0, index_len):
+            t1 = group.iat[i, 5]
+            for j in range(i + 1, index_len):
                 t2index = indices_in_group[j]
-                t2 = x.iloc[j, 5]
+                t2 = group.iat[j, 5]
                 if t1 == t2:
                     df.at[t2index, 'clicks_in_last_onemin'] += 1
                 else:
@@ -52,7 +53,7 @@ print("reading file...")
 #df = pd.read_csv('train.csv', dtype = dtypes, skiprows=range(6000000,124903891), nrows = 5000, parse_dates=['click_time', 'attributed_time'],infer_datetime_format=True)
 
 dtypes = {
-        'ip':'uint32',
+        'ip': 'uint32',
         'app': 'uint16',
         'device': 'uint16',
         'os': 'uint16',
@@ -61,7 +62,7 @@ dtypes = {
         }
 
 c = 0
-for chunk in pd.read_csv('train.csv', dtype = dtypes, parse_dates=['click_time', 'attributed_time'], infer_datetime_format=True, skiprows=range(1,43000000), chunksize = 1000, nrows = 5000):
+for chunk in pd.read_csv('train.csv', dtype = dtypes, parse_dates=['click_time', 'attributed_time'], infer_datetime_format=True, skiprows=range(1,43000000), chunksize = 10000, nrows = 100000):
      chunk = chunk.drop(columns = ['attributed_time'], axis = 1)
      if c==0:
          df = chunk
@@ -72,15 +73,6 @@ for chunk in pd.read_csv('train.csv', dtype = dtypes, parse_dates=['click_time',
 
 del chunk
 print("time taken loading file - " + str(time.time() - starttime))
-print('memory usage - ')
-df.info(memory_usage = 'deep')
-print(df.memory_usage(deep = True)/1024)
-print('dataframe head - ')
-print(df.head())
-
-# sort by ip and clicktime
-#df.set_index('click_time')
-df.sort_values(by = ['ip', 'click_time'], inplace = True)
 
 # add new columns
 df['time_diff'] = 0
@@ -89,12 +81,32 @@ df['clicks_in_last_24hrs'] = 0
 df['clicks_in_last_onehr'] = 0
 df['clicks_in_last_onemin'] = 0
 
+newcol_dtypes = {
+        'time_diff': 'uint16',
+        'clicks_in_last_dayorearlier': 'uint16',
+        'clicks_in_last_24hrs': 'uint16',
+        'clicks_in_last_onehr': 'uint16',
+        'clicks_in_last_onemin': 'uint16'
+        }
+
+df = df.astype(dtype = newcol_dtypes)
+
+print('\nmemory usage - ')
+df.info(memory_usage = 'deep')
+print(df.memory_usage(deep = True)/1024)
+print('\ndataframe head - ')
+print(df.head())
+
+# sort by ip and clicktime
+#df.set_index('click_time')
+#df.sort_values(by = ['ip', 'click_time'], inplace = True)
+
 # group by ip, get similar ip chunks, calculate time diff, can be changed to ip and device
 print("\ngrouping data\n")
 grouped = df.groupby('ip')
 for key, group in grouped:
-    #print("working on ip " + str(key))
     iterate_groups(group)
+#df.groupby('ip').apply(iterate_groups)
 
 #iterate rows and calculate how many clicks ip had in last min, last hr, last day
 #for index, row in df.iterrows():
@@ -114,7 +126,7 @@ for key, group in grouped:
 #        getpastclicks(diff)
 
 print("\nadded new features")
-
+print("time taken for adding features " + str(time.time() - starttime))
 print("\nwriting to file")
 df = df.drop(columns = ['time_diff'], axis = 1)
 df.to_hdf('train_hdf', key = 'train_features', mode = 'w', format = 'table')
