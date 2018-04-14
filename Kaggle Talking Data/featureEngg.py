@@ -8,8 +8,7 @@ Created on Fri Mar 30 00:48:58 2018
 import pandas as pd
 import numpy as np
 import time
-from sklearn.cross_validation import train_test_split, cross_val_score
-from sklearn.metrics import confusion_matrix
+import gc
 
 #check if difference is within last min, hour, 24hrs or earlier
 def getpastclicks(diff, index):
@@ -33,7 +32,7 @@ def iterate_groups(group):
     indices_in_group = group.index.tolist()
     # no need to iterate if theres just one element in group
     index_len = len(indices_in_group)
-    if len(indices_in_group) > 1:
+    if index_len > 1:
         #iterate indices in group to calculate time diff
         for i in range(0, index_len):
             t1 = group.iat[i, 5]
@@ -49,8 +48,6 @@ def iterate_groups(group):
 ###############################################################################
 
 starttime = time.time()
-print("reading file...")
-#df = pd.read_csv('train.csv', dtype = dtypes, skiprows=range(6000000,124903891), nrows = 5000, parse_dates=['click_time', 'attributed_time'],infer_datetime_format=True)
 
 dtypes = {
         'ip': 'uint32',
@@ -61,17 +58,21 @@ dtypes = {
         'is_attributed': 'bool'
         }
 
-c = 0
-for chunk in pd.read_csv('train.csv', dtype = dtypes, parse_dates=['click_time', 'attributed_time'], infer_datetime_format=True, skiprows=range(1,43000000), chunksize = 10000, nrows = 100000):
-     chunk = chunk.drop(columns = ['attributed_time'], axis = 1)
-     if c==0:
-         df = chunk
-         c += 1
-     else:
-         df = df.append(chunk, ignore_index = True)
-         c += 1
+#uniform sampling, reading every kth index
+file = "train.csv"
+n = sum(1 for l in open(file))       # number of rows in file
+print("\nnumber of lines in file " + str(n))
+s = 100000          # approx sample size
+k = int(n/s)
+skip_ids = [x for x in range(1, n) if x % k != 0]
+n_rows_skipping = len(skip_ids)
+print("\nsample size " + str(n - n_rows_skipping - 1))
+print("\nreading file...")
+df = pd.read_csv(file, dtype = dtypes, parse_dates=['click_time', 'attributed_time'], infer_datetime_format=True, skiprows = skip_ids)
 
-del chunk
+del skip_ids
+gc.collect
+
 print("time taken loading file - " + str(time.time() - starttime))
 
 # add new columns
@@ -98,37 +99,21 @@ print('\ndataframe head - ')
 print(df.head())
 
 # sort by ip and clicktime
-#df.set_index('click_time')
 #df.sort_values(by = ['ip', 'click_time'], inplace = True)
 
-# group by ip, get similar ip chunks, calculate time diff, can be changed to ip and device
-print("\ngrouping data\n")
+# group by ip, get similar ip chunks, calculate time difference, can be changed to ip and device
+print("\nadding features\n")
 grouped = df.groupby('ip')
 for key, group in grouped:
     iterate_groups(group)
-#df.groupby('ip').apply(iterate_groups)
-
-#iterate rows and calculate how many clicks ip had in last min, last hr, last day
-#for index, row in df.iterrows():
-#    ip_iter = row['ip']
-#    #dataframe above iterated row
-#    ip_index = df.columns.get_loc('ip')
-#    click_time_index = df.columns.get_loc('click_time')
-#    upperSlice = df.iloc[0:index,[ip_index, click_time_index]]
-#    # select rows only where ip matches
-#    upperSlice = upperSlice[upperSlice.ip == ip_iter]
-#    for upperSliceIndex, upperSliceRow in upperSlice.iterrows():
-#        t1 = upperSliceRow['click_time']
-#        t2 = row['click_time']
-#        diff = t2 - t1
-#        col_index = df.columns.get_loc("time_diff")
-#        df.iloc[index, col_index] = diff
-#        getpastclicks(diff)
+#df.groupby('ip').apply(lambda group: iterate_groups(group) if len(group.index.tolist()) > 1 else group)
 
 print("\nadded new features")
 print("time taken for adding features " + str(time.time() - starttime))
-print("\nwriting to file")
 df = df.drop(columns = ['time_diff'], axis = 1)
+
+#write dataframe to hdf file
+print("\nwriting to file")
 df.to_hdf('train_hdf', key = 'train_features', mode = 'w', format = 'table')
 
 endtime = time.time()
